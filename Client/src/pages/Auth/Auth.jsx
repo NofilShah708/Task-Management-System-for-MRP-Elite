@@ -6,14 +6,14 @@ import { Link } from 'react-router-dom';
 const Auth = () => {
   const [isAdmin, setIsAdmin] = useState(true);
   const [formData, setFormData] = useState({
-    email: '',
+    userid: '',
     password: '',
   });
   const [loading, setLoading] = useState(false);
 
   const toggleRole = () => {
     setIsAdmin(!isAdmin);
-    setFormData({ email: '', password: '' });
+    setFormData({ userid: '', password: '' });
   };
 
   const handleChange = (e) => {
@@ -38,8 +38,10 @@ const Auth = () => {
       const data = await response.json();
       if (response.ok) {
         localStorage.setItem('token', data.token);
+        const userData = isAdmin ? data.admin : data.user;
+        localStorage.setItem('userId', userData._id);
         // prefer backend role when available, otherwise use current toggle
-        const role = data.user?.role || (isAdmin ? 'admin' : 'user');
+        const role = userData?.role || (isAdmin ? 'admin' : 'user');
         window.location.href = role === 'admin' ? '/admin' : '/user';
       } else {
         alert(data.message || 'Login failed');
@@ -74,15 +76,15 @@ const Auth = () => {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-semibold mb-2 text-gray-700">Email</label>
+            <label className="block text-sm font-semibold mb-2 text-gray-700">User ID</label>
             <div className="flex items-center border border-gray-300 px-3">
               <FaEnvelope className="text-gray-400 mr-2" />
               <input
-                type="email"
-                name="email"
-                value={formData.email}
+                type="text"
+                name="userid"
+                value={formData.userid}
                 onChange={handleChange}
-                placeholder="you@example.com"
+                placeholder="Your user ID"
                 className="w-full py-2 focus:outline-none"
                 required
               />

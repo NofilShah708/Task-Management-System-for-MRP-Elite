@@ -1,16 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import UserSidebar from './UserSidebar';
 import { FaSearch, FaCheck, FaClock, FaHourglassHalf } from 'react-icons/fa';
 
 const ReadTask = () => {
+  const navigate = useNavigate();
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [updating, setUpdating] = useState({}); // { [taskId]: true/false }
   const [newComment, setNewComment] = useState({}); // { [taskId]: comment text }
+  const [seenTasks, setSeenTasks] = useState(new Set(JSON.parse(localStorage.getItem("seenTasks") || "[]")));
 
   // Maps for status conversion between frontend display and backend values
   const statusMap = {
@@ -45,7 +48,7 @@ const ReadTask = () => {
     fetchTasks();
   }, []);
 
-  const statusOptions = ['Pending', 'In Progress', 'Completed'];
+  const statusOptions = ['Pending', 'In Progress', 'Completed', 'Blocked'];
 
   // Get the current user's assignment status
   const getUserStatus = (task) => {
@@ -175,6 +178,7 @@ const ReadTask = () => {
                 <option value="pending">Pending</option>
                 <option value="in progress">In Progress</option>
                 <option value="completed">Completed</option>
+                <option value="blocked">Blocked</option>
               </select>
             </div>
           </div>
@@ -184,102 +188,43 @@ const ReadTask = () => {
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto" />
             </div>
           ) : (
-            <div className="grid gap-4">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {filteredTasks.map((task) => (
                 <motion.div
                   key={task._id}
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="bg-white shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow"
+                  className="relative bg-white shadow-sm border border-gray-200 p-4 hover:shadow-md transition-shadow cursor-pointer"
+                  onClick={() => {
+                    const newSeenTasks = new Set(seenTasks);
+                    newSeenTasks.add(task._id);
+                    setSeenTasks(newSeenTasks);
+                    localStorage.setItem("seenTasks", JSON.stringify([...newSeenTasks]));
+                    navigate(`/user/task/${task._id}`);
+                  }}
                 >
-                  <div className="flex flex-col md:flex-row justify-between items-start gap-4">
-                    <div className="flex-1">
-                      <h3 className="text-xl font-semibold text-gray-800 mb-2">{task.title}</h3>
-                      <p className="text-gray-600 mb-4">{task.description}</p>
-                      <div className="flex flex-wrap gap-4 text-sm text-gray-500">
+                  {/* New Comments Indicator */}
+                  {task.comments && task.comments.length > 0 && !seenTasks.has(task._id) && (
+                    <div className="absolute top-2 right-2 w-3 h-3 bg-red-500 rounded-full"></div>
+                  )}
+
+                  <div className="flex flex-col gap-3">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-800 mb-2">{task.title}</h3>
+                      <p className="text-gray-600 text-sm mb-3 line-clamp-2">{task.description}</p>
+                      <div className="flex flex-wrap gap-2 text-xs text-gray-500">
                         <span>Due: {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : '—'}</span>
-                        <span>Created by: {task.createdBy?.name || 'Unknown'}</span>
-                        <span>Assigned to: {task.assignedTo?.map(a => a.user?.name).join(', ') || 'Unknown'}</span>
-                      </div>
-
-                      {/* Individual User Statuses */}
-                      <div className="mt-2">
-                        <h4 className="text-sm font-medium text-gray-700 mb-1">Completion Status:</h4>
-                        <div className="flex flex-wrap gap-2">
-                          {task.assignedTo?.map((assignment, index) => (
-                            <span
-                              key={index}
-                              className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                                assignment.status === 'Completed'
-                                  ? 'bg-green-100 text-green-800'
-                                  : assignment.status === 'In Progress'
-                                  ? 'bg-yellow-100 text-yellow-800'
-                                  : 'bg-blue-100 text-blue-800'
-                              }`}
-                            >
-                              {assignment.user?.name}: {assignment.status}
-                            </span>
-                          ))}
-                        </div>
-                        {isTaskCompleted(task) && (
-                          <div className="mt-2 text-green-600 font-semibold text-sm">
-                          Task Done! All users have completed their parts.
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Comments Section */}
-                      <div className="mt-4">
-                        <h4 className="text-sm font-medium text-gray-700 mb-2">Comments</h4>
-                        <div className="flex gap-2 mb-2">
-                          <textarea
-                            value={newComment[task._id] || ''}
-                            onChange={(e) => setNewComment((prev) => ({ ...prev, [task._id]: e.target.value }))}
-                            placeholder="Add a comment..."
-                            className="flex-1 px-3 py-2 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                            rows="2"
-                          />
-                          <button
-                            onClick={() => handleAddComment(task._id)}
-                            className="px-4 py-2 bg-blue-500 text-white hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          >
-                            Add
-                          </button>
-                        </div>
-                        <div className="space-y-2">
-                          {(task.comments || []).map((comment, index) => (
-                            <div key={index} className="bg-gray-50 p-3 rounded">
-                              <p className="text-sm text-gray-700">{comment.text}</p>
-                              <p className="text-xs text-gray-500 mt-1">
-                                {comment.createdBy?.name || 'Unknown'} - {new Date(comment.createdAt).toLocaleString()}
-                              </p>
-                            </div>
-                          ))}
-                        </div>
+                        <span>By: {task.createdBy?.name || 'Unknown'}</span>
                       </div>
                     </div>
 
-                    <div className="flex flex-col items-end gap-3">
-                      <div className={`flex items-center px-3 py-1 rounded-full ${getStatusColor(task.status)}`}>
+                    <div className="flex items-center justify-between">
+                      <div className={`flex items-center px-2 py-1 rounded-full text-xs ${getStatusColor(task.status)}`}>
                         {getStatusIcon(task.status)}
-                        <span className="mr-2">{displayMap[task.status] || task.status}</span>
+                        <span>{displayMap[task.status] || task.status}</span>
                       </div>
-
-                      <div className="w-48">
-                        <label className="block text-xs text-gray-500 mb-1">Update Your Status</label>
-                        <select
-                          value={getUserStatus(task)}
-                          onChange={(e) => handleStatusChange(task._id, e.target.value)}
-                          disabled={!!updating[task._id]}
-                          className="w-full px-3 py-2 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                          {statusOptions.map((s) => (
-                            <option key={s} value={s}>
-                              {s}
-                            </option>
-                          ))}
-                        </select>
-                        {updating[task._id] && <div className="text-xs text-gray-500 mt-1">Updating...</div>}
+                      <div className="text-xs text-gray-500">
+                        {task.assignedTo?.length || 0} assigned
                       </div>
                     </div>
                   </div>

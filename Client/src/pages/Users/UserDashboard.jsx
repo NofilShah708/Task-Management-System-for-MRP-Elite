@@ -4,11 +4,13 @@ import axios from "axios";
 import { PieChart, Pie, Cell, Tooltip, Legend } from "recharts";
 import { FaTasks, FaCalendarAlt, FaCheckCircle } from "react-icons/fa";
 import UserSidebar from "./UserSidebar";
+import { Link } from "react-router-dom";
 
 const COLORS = ["#3B82F6", "#10B981"]; // Blue, Green
 
 const UserDashboard = () => {
   const [tasks, setTasks] = useState([]);
+  const [user, setUser] = useState(null);
   const [stats, setStats] = useState({
     totalTasks: 0,
     completedTasks: 0,
@@ -23,13 +25,21 @@ const UserDashboard = () => {
       return;
     }
 
-    const fetchUserTasks = async () => {
+    const fetchUserData = async () => {
       try {
-        const res = await axios.get("http://localhost:4041/user/task", {
+        // Fetch user profile
+        const profileRes = await axios.get("http://localhost:4041/auth/profile", {
           headers: { Authorization: `Bearer ${token}` },
           withCredentials: true,
         });
-        const userTasks = res.data.tasks || [];
+        setUser(profileRes.data.user);
+
+        // Fetch user tasks
+        const tasksRes = await axios.get("http://localhost:4041/user/task", {
+          headers: { Authorization: `Bearer ${token}` },
+          withCredentials: true,
+        });
+        const userTasks = tasksRes.data.tasks || [];
         const completed = userTasks.filter((t) => t.status === "Completed").length;
         const pending = userTasks.length - completed;
 
@@ -40,14 +50,14 @@ const UserDashboard = () => {
           pendingTasks: pending,
         });
       } catch (err) {
-        console.error("Error fetching user tasks:", err);
+        console.error("Error fetching user data:", err);
         // optional: show toast / alert
       } finally {
         setLoading(false);
       }
     };
 
-    fetchUserTasks();
+    fetchUserData();
   }, []);
 
   const pieData = [
@@ -68,12 +78,39 @@ const UserDashboard = () => {
           User Dashboard
         </motion.h1>
 
+        {/* User Details Section */}
+        {user && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="bg-white shadow-md p-6 mb-8"
+          >
+            <h2 className="text-2xl font-semibold text-gray-800 mb-4">My Details</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Name</label>
+                <p className="mt-1 text-lg text-gray-900">{user.name}</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">User ID</label>
+                <p className="mt-1 text-lg text-gray-900">{user.userid}</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Department</label>
+                <p className="mt-1 text-lg text-gray-900">{user.departments && user.departments.length > 0 ? user.departments.map(dept => dept.name).join(', ') : 'Not specified'}</p>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
           className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8"
         >
+            <Link to="/user/task">
           <div className="bg-white p-6 shadow hover:shadow-lg transition flex items-center gap-4">
             <div className="bg-blue-50 p-3 rounded-lg">
               <FaTasks className="text-blue-600 text-2xl" />
@@ -83,6 +120,9 @@ const UserDashboard = () => {
               <p className="text-2xl font-bold text-blue-600">{stats.totalTasks}</p>
             </div>
           </div>
+              </Link>
+
+            <Link to="/user/task">
 
           <div className="bg-white p-6 shadow hover:shadow-lg transition flex items-center gap-4">
             <div className="bg-green-50 p-3 rounded-lg">
@@ -93,6 +133,9 @@ const UserDashboard = () => {
               <p className="text-2xl font-bold text-green-500">{stats.completedTasks}</p>
             </div>
           </div>
+</Link>
+
+            <Link to="/user/task">
 
           <div className="bg-white p-6 shadow hover:shadow-lg transition flex items-center gap-4">
             <div className="bg-yellow-50 p-3 rounded-lg">
@@ -104,6 +147,7 @@ const UserDashboard = () => {
             </div>
           </div>
 
+</Link>
           <div className="bg-white p-6  shadow hover:shadow-lg transition flex items-center gap-4">
             <div className="bg-gray-50 p-3 rounded-lg">
               <FaTasks className="text-gray-600 text-2xl" />

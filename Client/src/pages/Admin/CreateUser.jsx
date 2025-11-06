@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import axios from 'axios';
 import AdminSidebar from './AdminSidebar';
@@ -6,16 +6,43 @@ import AdminSidebar from './AdminSidebar';
 const CreateUser = () => {
   const [userData, setUserData] = useState({
     name: '',
+    userid: '',
     email: '',
     password: '',
     role: 'user', // Default role
+    departments: [],
   });
 
+  const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
 
+  useEffect(() => {
+    const fetchDepartments = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await axios.get('http://localhost:4041/admin/departments', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          withCredentials: true,
+        });
+        setDepartments(response.data.departments);
+      } catch (error) {
+        console.error('Failed to fetch departments:', error);
+      }
+    };
+    fetchDepartments();
+  }, []);
+
   const handleChange = (e) => {
-    setUserData({ ...userData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    if (name === 'departments') {
+      const selectedOptions = Array.from(e.target.selectedOptions, option => option.value);
+      setUserData({ ...userData, [name]: selectedOptions });
+    } else {
+      setUserData({ ...userData, [name]: value });
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -25,9 +52,14 @@ const CreateUser = () => {
 
     try {
       const token = localStorage.getItem('token');
+      const dataToSend = { ...userData };
+      // Remove empty departments array if no departments selected
+      if (dataToSend.departments && dataToSend.departments.length === 0) {
+        delete dataToSend.departments;
+      }
       const response = await axios.post(
         'http://localhost:4041/admin/users',
-        userData,
+        dataToSend,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -39,9 +71,11 @@ const CreateUser = () => {
       setMessage('✅ User created successfully!');
       setUserData({
         name: '',
+        userid: '',
         email: '',
         password: '',
         role: 'employee',
+        departments: [],
       });
     } catch (error) {
       setMessage(`❌ ${error.response?.data?.message || 'Failed to create user'}`);
@@ -61,7 +95,7 @@ const CreateUser = () => {
           className="max-w-2xl mx-auto bg-white shadow-lg p-8"
         >
           <h1 className="text-3xl font-bold text-blue-900 mb-6 text-center">
-            Create New User or Admin
+            Create New User
           </h1>
 
           {message && (
@@ -89,7 +123,21 @@ const CreateUser = () => {
 
             <div>
               <label className="block text-sm font-semibold mb-2 text-gray-700">
-                Email Address
+                User ID
+              </label>
+              <input
+                type="text"
+                name="userid"
+                value={userData.userid}
+                onChange={handleChange}
+                className="w-full px-4 py-2 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold mb-2 text-gray-700">
+                Email (Optional)
               </label>
               <input
                 type="email"
@@ -97,7 +145,6 @@ const CreateUser = () => {
                 value={userData.email}
                 onChange={handleChange}
                 className="w-full px-4 py-2 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
               />
             </div>
 
@@ -126,7 +173,26 @@ const CreateUser = () => {
                 className="w-full px-4 py-2 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="user">Employee</option>
-        
+
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold mb-2 text-gray-700">
+                Departments (Optional)
+              </label>
+              <select
+                name="departments"
+                multiple
+                value={userData.departments}
+                onChange={handleChange}
+                className="w-full px-4 py-2 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {departments.map((dept) => (
+                  <option key={dept._id} value={dept._id}>
+                    {dept.name}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -139,7 +205,7 @@ const CreateUser = () => {
                   : 'bg-blue-900 hover:bg-blue-900'
               } transition-colors`}
             >
-              {loading ? 'Creating...' : 'Create User or Admin'}
+              {loading ? 'Creating...' : 'Create User'}
             </button>
           </form>
         </motion.div>

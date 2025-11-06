@@ -1,0 +1,1 @@
+- [ ] Fix filter in UsersList.jsx by adding null checks for user.name and user.email

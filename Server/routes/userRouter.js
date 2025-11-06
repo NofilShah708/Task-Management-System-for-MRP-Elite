@@ -11,18 +11,18 @@ router.use(cookieParser());
 // Register / Create employee
 router.post('/create', async (req, res) => {
     try {
-        const { name, email, password } = req.body;
-        if (!name || !email || !password) {
-            return res.status(400).json({ message: 'Name, email and password are required' });
+        const { name, email, userid, password, department } = req.body;
+        if (!name || !email || !userid || !password) {
+            return res.status(400).json({ message: 'Name, userid and password are required' });
         }
 
-        const existing = await User.findOne({ email });
-        if (existing) {
-            return res.status(409).json({ message: 'User with this email already exists' });
+        const existingUserid = await User.findOne({ userid });
+        if (existingUserid) {
+            return res.status(409).json({ message: 'User with this userid already exists' });
         }
 
         const hashed = await bcrypt.hash(password, 10);
-        const user = new User({ name, email, password: hashed });
+        const user = new User({ name, userid, password: hashed, department });
         await user.save();
 
         const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET || 'your_jwt_secret', { expiresIn: '1h' });
@@ -41,12 +41,12 @@ router.post('/create', async (req, res) => {
 // Login
 router.post('/login', async (req, res) => {
     try {
-        const { email, password } = req.body;
-        if (!email || !password) {
-            return res.status(400).json({ message: 'Email and password required' });
+        const { userid, password } = req.body;
+        if (!userid || !password) {
+            return res.status(400).json({ message: 'Userid and password required' });
         }
 
-        const user = await User.findOne({ email });
+        const user = await User.findOne({ userid });
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
         }
@@ -77,7 +77,7 @@ router.get('/profile', verifyToken, async (req, res) => {
             return res.status(401).json({ message: 'Unable to determine user id from token' });
         }
 
-        const user = await User.findById(id).select('-password');
+        const user = await User.findById(id).select('-password').populate('departments', 'name');
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
         }
@@ -85,6 +85,72 @@ router.get('/profile', verifyToken, async (req, res) => {
         return res.status(200).json({ user });
     } catch (err) {
         return res.status(500).json({ message: 'Error fetching profile', error: err.message });
+    }
+});
+
+// Update profile (users can update name and userid, not department)
+router.put('/profile', verifyToken, async (req, res) => {
+    try {
+        const id = (req.user && (req.user.id || req.user._id || req.user.userId)) || req.adminId || req.userId;
+        if (!id) {
+            return res.status(401).json({ message: 'Unable to determine user id from token' });
+        }
+
+        const { name, userid } = req.body;
+        if (!name || !userid) {
+            return res.status(400).json({ message: 'Name and userid are required' });
+        }
+
+        // Check if userid is already taken by another user
+        const existingUser = await User.findOne({ userid, _id: { $ne: id } });
+        if (existingUser) {
+            return res.status(409).json({ message: 'Userid already in use by another user' });
+        }
+
+        const updatedUser = await User.findByIdAndUpdate(
+            id,
+            { name, userid },
+            { new: true, runValidators: true }
+        ).select('-password').populate('department', 'name');
+
+        if (!updatedUser) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        return res.status(200).json({ message: 'Profile updated successfully', user: updatedUser });
+    } catch (err) {
+        return res.status(500).json({ message: 'Error updating profile', error: err.message });
+    }
+});
+
+// Update password
+router.put('/password', verifyToken, async (req, res) => {
+    try {
+        const { oldPassword, newPassword } = req.body;
+        const id = (req.user && (req.user.id || req.user._id || req.user.userId)) || req.adminId || req.userId;
+        if (!id) {
+            return res.status(401).json({ message: 'Unable to determine user id from token' });
+        }
+
+        const user = await User.findById(id);
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        // Verify old password
+        const isMatch = await bcrypt.compare(oldPassword, user.password);
+        if (!isMatch) {
+            return res.status(400).json({ message: 'Old password is incorrect' });
+        }
+
+        // Hash new password
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        user.password = hashedPassword;
+        await user.save();
+
+        return res.status(200).json({ message: 'Password updated successfully' });
+    } catch (err) {
+        return res.status(500).json({ message: 'Error updating password', error: err.message });
     }
 });
 

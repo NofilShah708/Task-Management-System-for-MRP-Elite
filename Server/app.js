@@ -5,6 +5,13 @@ const database = require('./config/db.config');
 database.database();
 const cookieParser = require('cookie-parser');
 const app = express();
+
+// Skip ngrok browser warning
+app.use((req, res, next) => {
+  res.setHeader("ngrok-skip-browser-warning", "true");
+  next();
+});
+
 const cors = require('cors');
 
 // Routes
@@ -12,13 +19,28 @@ const adminRoutes = require('./routes/adminRouter');
 const userRoutes = require('./routes/userRouter');
 const taskRoutes = require('./routes/taskRouter')
 
-app.use(
-  cors({
-    origin: ["http://localhost:5173", "http://localhost:5174"], // your frontend URL(s)
-    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
-    credentials: true, // allows cookies, JWT, etc.
-  })
-);
+const allowedOrigins = [
+  "https://mrpelite-tms.netlify.app",
+  "https://mrp-tms.netlify.app",
+  "http://localhost:5173",
+];
+
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin)) {
+    res.header("Access-Control-Allow-Origin", origin);
+  }
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.header("Access-Control-Allow-Credentials", "true");
+  
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(200);
+  }
+  
+  next();
+});
+
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -34,7 +56,7 @@ app.get('/', (req, res) => {
 }
 );
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+const PORT = process.env.PORT || 4041;
+app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server is running on port ${PORT}`);
-}); 
+});
